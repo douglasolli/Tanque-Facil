@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Álcool ou Gasolina</title>
+
+  <!-- PWA -->
+  <link rel="manifest" href="manifest.json">
+  <meta name="theme-color" content="#0b1220">
+
+  <!-- iOS specific -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Combustível">
+  <!-- Ícone iOS: coloque um png 180x180 chamado icon-180.png na mesma pasta -->
+  <link rel="apple-touch-icon" href="icon-180.png">
+
+  <style>
+    body { font-family: -apple-system, Arial, sans-serif; margin: 0; background:#0b1220; color:#e8eefc; }
+    .wrap { max-width: 520px; margin: 0 auto; padding: 20px; padding-bottom: 30px; }
+    .card { background:#111a2e; border:1px solid #1e2a4a; border-radius:16px; padding:16px; }
+    h1 { font-size: 20px; margin: 0 0 12px; }
+    label { display:block; margin: 12px 0 6px; font-size: 14px; opacity: .9; }
+    input {
+      width: 100%; padding: 14px; border-radius: 12px; border:1px solid #26355f;
+      background:#0b1220; color:#e8eefc; font-size: 16px; outline: none;
+    }
+    button {
+      width:100%; margin-top: 14px; padding: 14px; border-radius: 12px; border:0;
+      background:#3b82f6; color:white; font-size: 16px; font-weight: 700;
+    }
+    button:active { transform: scale(0.99); }
+    .result { margin-top: 14px; padding: 12px; border-radius: 12px; background:#0b1220; border:1px dashed #26355f; }
+    .small { font-size: 13px; opacity:.85; margin-top: 10px; line-height: 1.4; }
+    .row { display:flex; gap:10px; margin-top: 10px; }
+    .pill { flex:1; background:#0b1220; border:1px solid #26355f; border-radius: 12px; padding:10px; text-align:center; }
+    .pill strong { display:block; font-size: 16px; margin-bottom: 4px; }
+
+    .topline { display:flex; justify-content:space-between; align-items:center; margin-bottom: 10px; }
+    .reset { background:transparent; color:#a8c6ff; border:0; font-size:14px; text-decoration: underline; }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="card">
+      <div class="topline">
+        <h1>Álcool x Gasolina</h1>
+        <button class="reset" id="reset">Limpar</button>
+      </div>
+
+      <label for="alcool">Preço do álcool (R$)</label>
+      <input id="alcool" inputmode="decimal" placeholder="Ex: 3,89" autocomplete="off"/>
+
+      <label for="gasolina">Preço da gasolina (R$)</label>
+      <input id="gasolina" inputmode="decimal" placeholder="Ex: 5,79" autocomplete="off"/>
+
+      <label for="limiar">Limiar (padrão 0,70)</label>
+      <input id="limiar" inputmode="decimal" value="0.70" autocomplete="off"/>
+
+      <button id="btn">Calcular</button>
+
+      <div class="result" id="out">Preencha os valores e toque em “Calcular”.</div>
+
+      <div class="small">
+        Regra: se <b>(álcool ÷ gasolina) ≤ limiar</b> → álcool compensa.
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const brToNumber = (v) => {
+      if (!v) return NaN;
+      v = v.toString().trim().replace(/[^\d,.-]/g, "");
+      if (v.includes(",")) v = v.replace(/\./g, "").replace(",", ".");
+      return Number(v);
+    };
+
+    const fmtBRL = (n) =>
+      new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(n);
+
+    const $ = (id) => document.getElementById(id);
+
+    const persist = () => {
+      localStorage.setItem("alcool", $("alcool").value);
+      localStorage.setItem("gasolina", $("gasolina").value);
+      localStorage.setItem("limiar", $("limiar").value);
+    };
+
+    const restore = () => {
+      $("alcool").value = localStorage.getItem("alcool") || "";
+      $("gasolina").value = localStorage.getItem("gasolina") || "";
+      $("limiar").value = localStorage.getItem("limiar") || "0.70";
+    };
+
+    const calc = () => {
+      const alcool = brToNumber($("alcool").value);
+      const gasolina = brToNumber($("gasolina").value);
+      const limiar = brToNumber($("limiar").value || "0.70");
+      const out = $("out");
+
+      if (!Number.isFinite(alcool) || !Number.isFinite(gasolina) || alcool <= 0 || gasolina <= 0) {
+        out.textContent = "⚠️ Coloque preços válidos para álcool e gasolina.";
+        return;
+      }
+      if (!Number.isFinite(limiar) || limiar <= 0 || limiar >= 1) {
+        out.textContent = "⚠️ Limiar inválido. Use algo como 0,70 (entre 0 e 1).";
+        return;
+      }
+
+      const razao = alcool / gasolina;
+      const compensa = razao <= limiar ? "Álcool" : "Gasolina";
+
+      const precoAlcoolNoLimite = gasolina * limiar;
+      const diff = Math.abs(alcool - precoAlcoolNoLimite);
+
+      out.innerHTML = `
+        <div class="row">
+          <div class="pill">
+            <strong>${compensa}</strong>
+            Compensa mais
+          </div>
+          <div class="pill">
+            <strong>${razao.toFixed(3)}</strong>
+            Álcool ÷ Gasolina
+          </div>
+        </div>
+        <div class="small">
+          Limiar usado: <b>${limiar.toFixed(2)}</b><br/>
+          Álcool “no limite”: <b>${fmtBRL(precoAlcoolNoLimite)}</b><br/>
+          Distância do limite: <b>${fmtBRL(diff)}</b> por litro (aprox.)
+        </div>
+      `;
+    };
+
+    $("btn").addEventListener("click", () => { persist(); calc(); });
+    $("reset").addEventListener("click", () => {
+      localStorage.removeItem("alcool");
+      localStorage.removeItem("gasolina");
+      localStorage.removeItem("limiar");
+      $("alcool").value = "";
+      $("gasolina").value = "";
+      $("limiar").value = "0.70";
+      $("out").textContent = "Preencha os valores e toque em “Calcular”.";
+    });
+
+    // salva enquanto digita (pra iOS é bom)
+    ["alcool","gasolina","limiar"].forEach(id => $(id).addEventListener("input", persist));
+
+    restore();
+
+    // registra service worker (offline)
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => navigator.serviceWorker.register("./sw.js"));
+    }
+  </script>
+</body>
+</html>
